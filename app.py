@@ -5,20 +5,20 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 
-# Cargar las variables de entorno desde .env
+# Load environment variables from .env
 load_dotenv()
 
-# Configurar la API key de Groq
+# Configure Groq API key
 api_key = os.environ.get("GROQ_API_KEY")
 
-# Inicializar cliente Groq
+# Initialize Groq client
 if not api_key:
-    st.error("🔑 API key no encontrada. Asegúrate de que 'GROQ_API_KEY' esté configurada correctamente.")
+    st.error("🔑 API key not found. Make sure 'GROQ_API_KEY' is properly configured.")
     st.stop()
 else:
     client = Groq(api_key=api_key)
 
-# Función para convertir mensajes de LangChain al formato requerido por Groq
+# Function to convert LangChain messages to Groq format
 def format_messages_for_groq(messages):
     formatted = []
     for msg in messages:
@@ -27,15 +27,15 @@ def format_messages_for_groq(messages):
             formatted.append({"role": role, "content": msg.content})
     return formatted
 
-# Función para asignar título a la conversación
+# Function to assign title to conversation
 def assign_conversation_title(conversation):
     if conversation:
-        first_user_message = next((msg["content"] for msg in conversation if msg["role"] == "user"), "Conversación sin título")
+        first_user_message = next((msg["content"] for msg in conversation if msg["role"] == "user"), "Untitled Conversation")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return f"{first_user_message[:30]}... ({timestamp})"
-    return "Conversación vacía"
+    return "Empty Conversation"
 
-# Inicializar variables de estado
+# Initialize state variables
 if 'memory' not in st.session_state:
     st.session_state.memory = ConversationBufferMemory(return_messages=True)
 if 'saved_conversations' not in st.session_state:
@@ -43,15 +43,15 @@ if 'saved_conversations' not in st.session_state:
 if 'current_messages' not in st.session_state:
     st.session_state.current_messages = []
 
-# Título principal de la aplicación
-st.markdown("<h1>💬 <span style='background: linear-gradient(to right, #FF0000, #FF7F00, #FFFF00, #00FF00, #0000FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Llama 3.3-70b y Groq</span> ⚡</h1>", unsafe_allow_html=True)
+# Main application title
+st.markdown("<h1>💬 <span style='background: linear-gradient(to right, #FF0000, #FF7F00, #FFFF00, #00FF00, #0000FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Llama 3.3-70b and Groq</span> ⚡</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
-# Configuración de la barra lateral
+# Sidebar configuration
 with st.sidebar:
-    st.title("🎯\u2004Opciones")
+    st.title("🎯\u2004Options")
     
-    if st.button("💾 \u2004Guardar conversación"):
+    if st.button("💾 \u2004Save conversation"):
         if st.session_state.current_messages:
             title = assign_conversation_title(st.session_state.current_messages)
             
@@ -67,11 +67,11 @@ with st.sidebar:
             
             st.session_state.current_messages = []
             st.session_state.memory = ConversationBufferMemory(return_messages=True)
-            st.success("✅ ¡Conversación guardada!")
+            st.success("✅ Conversation saved!")
     
-    # Mostrar conversaciones guardadas
+    # Display saved conversations
     if st.session_state.saved_conversations:
-        st.markdown("📚 ### Conversaciones guardadas:")
+        st.markdown("📚 ### Saved Conversations:")
         for idx, conv in enumerate(st.session_state.saved_conversations):
             col1, col2 = st.columns([4, 1])
             with col1:
@@ -88,28 +88,28 @@ with st.sidebar:
                     st.session_state.saved_conversations.pop(idx)
                     st.rerun()
 
-# Mostrar mensajes previos
+# Display previous messages
 for message in st.session_state.current_messages:
     with st.chat_message(message["role"]):
         icon = "👤" if message["role"] == "user" else "🤖"
         st.markdown(f"{icon} {message['content']}")
 
-# Entrada de chat para el usuario
-if user_input := st.chat_input("💭 Escribe tu mensaje aquí..."):
-    # Añadir el mensaje del usuario al historial
+# Chat input for user
+if user_input := st.chat_input("💭 Write your message here..."):
+    # Add user message to history
     st.session_state.current_messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(f"👤 {user_input}")
 
-    # Añadir el mensaje del usuario a la memoria
+    # Add user message to memory
     st.session_state.memory.chat_memory.add_user_message(user_input)
 
     try:
-        # Extraer contexto desde la memoria
+        # Extract context from memory
         raw_context = st.session_state.memory.chat_memory.messages
         context = format_messages_for_groq(raw_context)
 
-        # Enviar contexto al cliente Groq
+        # Send context to Groq client
         chat_completion = client.chat.completions.create(
             messages=context,
             model="llama-3.3-70b-versatile",
@@ -117,18 +117,18 @@ if user_input := st.chat_input("💭 Escribe tu mensaje aquí..."):
             temperature=0,
         )
 
-        # Procesar la respuesta
+        # Process response
         if chat_completion.choices:
-            respuesta = chat_completion.choices[0].message.content
+            response = chat_completion.choices[0].message.content
 
-            # Añadir la respuesta al historial
-            st.session_state.current_messages.append({"role": "assistant", "content": respuesta})
+            # Add response to history
+            st.session_state.current_messages.append({"role": "assistant", "content": response})
             with st.chat_message("assistant"):
-                st.markdown(f"🤖 {respuesta}")
+                st.markdown(f"🤖 {response}")
 
-            # Añadir la respuesta a la memoria
-            st.session_state.memory.chat_memory.add_ai_message(respuesta)
+            # Add response to memory
+            st.session_state.memory.chat_memory.add_ai_message(response)
         else:
-            st.warning("⚠️ El modelo no devolvió ninguna respuesta.")
+            st.warning("⚠️ The model didn't return any response.")
     except Exception as e:
-        st.error(f"❌ Se produjo un error: {e}")
+        st.error(f"❌ An error occurred: {e}")
